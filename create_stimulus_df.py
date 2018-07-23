@@ -1,9 +1,10 @@
-import h5py
-import json
+import pickle
+
 import numpy as np
 import pandas as pd
-import pickle
+
 from dataset import Dataset
+from starter_code_for_credit_assignment.Dataset2p import Dataset2p
 
 ASSUMED_DELAY = 0.0351
 DELAY_THRESHOLD = 0.001
@@ -153,75 +154,77 @@ def calculate_delay(sync_data, stim_vsync_fall, sample_frequency):
 
 
 
+if __name__=="__main__":
+
+    pkl_file_name = '710536829_389015_20180616_stim.pkl'
+    syn_file_name = '710536829_389015_20180616_sync.h5'
+    num_movies = 13         # Number of total moives
+    trials = [1] + [10]*12  # List with number of trials for every movie. Should be equal of length=num_movies
+
+
+    # Read the pickle file and call it "pkl"
+    file = open(pkl_file_name, 'rb')
+    pkl = pickle.load(file)
+    file.close()
+
+    # create a Dataset object with the sync file
+    sync_data = Dataset(syn_file_name)
+
+    # create Dataset2p object which will be used for the delay
+    dset = Dataset2p(syn_file_name)
+
+
+
+    sample_frequency = sync_data.meta_data['ni_daq']['counter_output_freq']
+
+    # calculate the valid twop_vsync fall
+    valid_twop_vsync_fall = calculate_valid_twop_vsync_fall(sync_data, sample_frequency)
+
+    # get the stim_vsync_fall
+    stim_vsync_fall = calculate_stim_vsync_fall(sync_data, sample_frequency)
+
+    # find the delay
+    #delay = calculate_delay(sync_data, stim_vsync_fall, sample_frequency)
+    delay = dset.display_lag
+
+    # adjust stimulus time with monitor delay
+    stim_time = stim_vsync_fall + delay
+
+    # find the alignment
+    stimulus_alignment = calculate_stimulus_alignment(stim_time, valid_twop_vsync_fall)
 
 
 
 
-pkl_file_name = '710536829_389015_20180616_stim.pkl'
-syn_file_name = '710536829_389015_20180616_sync.h5'
-num_movies = 13         # Number of total moives
-trials = [1] + [10]*12  # List with number of trials for every movie. Should be equal of length=num_movies
+    print "Creating the stim_df:"
+    stim_df = pd.DataFrame(index=range(np.sum(trials)), columns=['movie', 'trial', 'start_frame', \
+                                                                 'end_frame', 'num_frames'])
 
+    offset = int(pkl['pre_blank_sec'] *pkl['fps'])
 
-# Read the pickle file and call it "pkl"
-file = open(pkl_file_name, 'rb')
-pkl = pickle.load(file)
-file.close()
+    zz = 0
+    # For gray-screen pre_blank
+    stim_df.ix[zz, 'movie'] = -1
+    stim_df.ix[zz, 'trial'] = 0
+    stim_df.ix[zz, 'start_frame'] = stimulus_alignment[0]
+    stim_df.ix[zz, 'end_frame'] = stimulus_alignment[offset]
+    stim_df.ix[zz, 'num_frames'] = stimulus_alignment[offset] - stimulus_alignment[0]
+    zz += 1
 
+    for movie in range(num_movies):
+        print 'movie:', movie
+        movie_frames = pkl['stimuli'][movie]['frame_list']
+        stimulus_start_inds = np.where(movie_frames == 0)[0]
+        stimulus_end_inds = np.where(movie_frames == np.max(movie_frames))[0]
+        for trial in range(trials[movie]):
+            tup = (trial, int(stimulus_alignment[stimulus_start_inds[trial * 2] + offset]), \
+                   int(stimulus_alignment[stimulus_end_inds[trial * 2 + 1] + 1 + offset]))
 
+            stim_df.ix[zz, 'movie'] = movie
+            stim_df.ix[zz, 'trial'] = trial
+            stim_df.ix[zz, 'start_frame'] = tup[1]
+            stim_df.ix[zz, 'end_frame'] = tup[2]
+            stim_df.ix[zz, 'num_frames'] = tup[2] - tup[1]
+            zz += 1
 
-# create a Dataset object with the sync file
-sync_data = Dataset(syn_file_name)
-
-sample_frequency = sync_data.meta_data['ni_daq']['counter_output_freq']
-
-# calculate the valid twop_vsync fall
-valid_twop_vsync_fall = calculate_valid_twop_vsync_fall(sync_data, sample_frequency)
-
-# get the stim_vsync_fall
-stim_vsync_fall = calculate_stim_vsync_fall(sync_data, sample_frequency)
-
-# find the delay
-delay = calculate_delay(sync_data, stim_vsync_fall, sample_frequency)
-
-# adjust stimulus time with monitor delay
-stim_time = stim_vsync_fall + delay
-
-# find the alignment
-stimulus_alignment = calculate_stimulus_alignment(stim_time, valid_twop_vsync_fall)
-
-
-
-
-print "Creating the stim_df:"
-stim_df = pd.DataFrame(index=range(np.sum(trials)), columns=['movie', 'trial', 'start_frame', \
-                                                             'end_frame', 'num_frames'])
-
-offset = int(pkl['pre_blank_sec'] *pkl['fps'])
-
-zz = 0
-# For gray-screen pre_blank
-stim_df.ix[zz, 'movie'] = -1
-stim_df.ix[zz, 'trial'] = 0
-stim_df.ix[zz, 'start_frame'] = stimulus_alignment[0]
-stim_df.ix[zz, 'end_frame'] = stimulus_alignment[offset]
-stim_df.ix[zz, 'num_frames'] = stimulus_alignment[offset] - stimulus_alignment[0]
-zz += 1
-
-for movie in range(num_movies):
-    print 'movie:', movie
-    movie_frames = pkl['stimuli'][movie]['frame_list']
-    stimulus_start_inds = np.where(movie_frames == 0)[0]
-    stimulus_end_inds = np.where(movie_frames == np.max(movie_frames))[0]
-    for trial in range(trials[movie]):
-        tup = (trial, int(stimulus_alignment[stimulus_start_inds[trial * 2] + offset]), \
-               int(stimulus_alignment[stimulus_end_inds[trial * 2 + 1] + 1 + offset]))
-
-        stim_df.ix[zz, 'movie'] = movie
-        stim_df.ix[zz, 'trial'] = trial
-        stim_df.ix[zz, 'start_frame'] = tup[1]
-        stim_df.ix[zz, 'end_frame'] = tup[2]
-        stim_df.ix[zz, 'num_frames'] = tup[2] - tup[1]
-        zz += 1
-
-print stim_df
+    print stim_df

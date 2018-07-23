@@ -1,6 +1,6 @@
 The code and example herein are created to help OpenScope proposals to align their stimuli.
 
-Two scripts are used that recycle functions from the Allen Institute Brain Observatory pipeline code.
+Three scripts are used that recycle functions from the Allen Institute Brain Observatory pipeline code.
 Users will only need run: create_stimulus_df.py
 
 This script will load two files, a pickle file and a sync.h5 which are from a real pilot for another
@@ -21,7 +21,7 @@ was just a pre-blank stimulus.
 The code will use both the pickle file and HDF5 file to return a dataframe that is aligned to the imaging
 frames (df/f) as the screen frequency was 60Hz and the imaging was at 30Hz (slighlty higher 30Hz as you will see).
 Note you will see that the first frame (for movie = -1) starts at frame 133. This is because the
-imaging starts before that the stimulus by less than 5 seconds. This is one check you can do that your
+imaging starts before the stimulus does by less than 5 seconds. This is one check you can do that your
 alignment is correct as you modify the code.
 
 
